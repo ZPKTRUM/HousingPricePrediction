@@ -56,14 +56,27 @@ df_encoded['PriceCategory'] = le.fit_transform(df_encoded['PriceCategory'])
 X = df_encoded.drop(['price', 'PriceCategory'], axis=1)
 y = df_encoded['PriceCategory']
 
-# Estandarizar caracteristicas
+print("\nVERIFICACION DE ESCALADO:")
+print("Variables originales (primeras 5 filas):")
+print(X.head())
+print(f"\nRango de valores originales:")
+for col in X.columns[:3]:  # Mostrar solo primeras 3 columnas
+    print(f"   {col}: min={X[col].min():.2f}, max={X[col].max():.2f}")
+
+# Estandarizar caracteristicas - IMPORTANTE PARA RED NEURONAL
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
+
+print(f"\nVariables escaladas (primeras 5 filas):")
+print(X_scaled[:5])
+print(f"\nRango de valores escalados:")
+print(f"   Min: {X_scaled.min():.2f}, Max: {X_scaled.max():.2f}")
+print(f"   Media: {X_scaled.mean():.2f}, Desviacion: {X_scaled.std():.2f}")
 
 X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, 
                                                    random_state=42, stratify=y)
 
-print(f"Conjunto de entrenamiento: {X_train.shape[0]} observaciones")
+print(f"\nConjunto de entrenamiento: {X_train.shape[0]} observaciones")
 print(f"Conjunto de prueba: {X_test.shape[0]} observaciones")
 
 # =============================================================================
@@ -86,10 +99,12 @@ models = {
         }
     },
     'Red Neuronal': {
-        'model': MLPClassifier(random_state=42, max_iter=1000),
+        'model': MLPClassifier(random_state=42, max_iter=2000, early_stopping=True, validation_fraction=0.1),
         'params': {
-            'hidden_layer_sizes': [(50,), (100,), (50, 50)],
-            'alpha': [0.001, 0.01, 0.1]
+            'hidden_layer_sizes': [(50,), (100,), (50, 50), (100, 50)],
+            'alpha': [0.001, 0.01, 0.1],
+            'learning_rate': ['constant', 'adaptive'],
+            'learning_rate_init': [0.001, 0.01]
         }
     },
     'Naive Bayes': {
@@ -124,6 +139,7 @@ results = {}
 training_times = {}
 best_models = {}
 tree_rules = {}
+nn_loss_curves = {}
 
 for name, config in models.items():
     print(f"Entrenando {name}...")
@@ -177,6 +193,10 @@ for name, config in models.items():
     if name == 'Arbol de Decision':
         tree_rules['reglas_texto'] = export_text(best_model, feature_names=list(X.columns))
         tree_rules['caracteristicas_importancia'] = dict(zip(X.columns, best_model.feature_importances_))
+    
+    # Guardar curva de perdida de red neuronal
+    if name == 'Red Neuronal' and hasattr(best_model, 'loss_curve_'):
+        nn_loss_curves = best_model.loss_curve_
     
     print(f"   CV Accuracy: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
     print(f"   Tiempo entrenamiento: {training_time:.2f} segundos")
@@ -257,7 +277,18 @@ plt.tight_layout()
 plt.savefig('comparacion_algoritmos.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-# 4.5 Curvas ROC comparativas
+# 4.5 Curva de aprendizaje de la Red Neuronal
+if nn_loss_curves is not None:
+    plt.figure(figsize=(10, 6))
+    plt.plot(nn_loss_curves, linewidth=2)
+    plt.title('Curva de Aprendizaje - Red Neuronal', fontsize=16, fontweight='bold')
+    plt.xlabel('Iteraciones')
+    plt.ylabel('Loss')
+    plt.grid(alpha=0.3)
+    plt.savefig('red_neuronal_curva_aprendizaje.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+# 4.6 Curvas ROC comparativas
 plt.figure(figsize=(12, 8))
 for name, result in results.items():
     if result['auc'] is not None:
@@ -278,7 +309,7 @@ plt.axis('equal')
 plt.savefig('curvas_roc_comparativas.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-# 4.6 Matriz de confusion del mejor modelo
+# 4.7 Matriz de confusion del mejor modelo
 best_model_name = max(results, key=lambda x: results[x]['f1'])
 best_model = results[best_model_name]['model']
 y_pred_best = best_model.predict(X_test)
@@ -296,7 +327,7 @@ plt.xlabel('Prediccion', fontsize=12)
 plt.savefig('mejor_modelo_matriz_confusion.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-# 4.7 Visualizacion del Arbol de Decision
+# 4.8 Visualizacion del Arbol de Decision
 best_tree_model = best_models['Arbol de Decision']
 plt.figure(figsize=(20, 12))
 plot_tree(best_tree_model, 
@@ -311,7 +342,7 @@ plt.title('Arbol de Decision - Visualizacion Completa', fontsize=18, fontweight=
 plt.savefig('arbol_decision_visualizacion.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-# 4.8 Importancia de variables del Arbol de Decision
+# 4.9 Importancia de variables del Arbol de Decision
 plt.figure(figsize=(12, 8))
 importancias = best_tree_model.feature_importances_
 indices = np.argsort(importancias)[::-1]
@@ -324,7 +355,7 @@ plt.tight_layout()
 plt.savefig('arbol_decision_importancia.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-# 4.9 Coeficientes de Regresion Logistica
+# 4.10 Coeficientes de Regresion Logistica
 lr_model = best_models['Regresion Logistica']
 if hasattr(lr_model, 'coef_'):
     plt.figure(figsize=(12, 8))
@@ -428,8 +459,31 @@ matriz_confusion_df.to_csv('mejor_modelo_matriz_confusion.csv', encoding='utf-8'
 print("Archivo guardado: mejor_modelo_matriz_confusion.csv")
 
 # =============================================================================
-# 6. RESUMEN FINAL
+# 6. RESUMEN FINAL Y VERIFICACION RED NEURONAL
 # =============================================================================
+
+print("\n" + "=" * 60)
+print("VERIFICACION RED NEURONAL - ESCALADO")
+print("=" * 60)
+
+# Verificar que los datos esten correctamente escalados
+print("Verificacion de escalado para Red Neuronal:")
+print(f"   Media de X_train: {X_train.mean():.6f}")
+print(f"   Desviacion estandar de X_train: {X_train.std():.6f}")
+print(f"   Rango de X_train: [{X_train.min():.2f}, {X_train.max():.2f}]")
+
+if 'Red Neuronal' in best_models:
+    nn_model = best_models['Red Neuronal']
+    print(f"\nConfiguracion Red Neuronal:")
+    print(f"   Arquitectura: {nn_model.hidden_layer_sizes}")
+    print(f"   Alpha (regularizacion): {nn_model.alpha}")
+    print(f"   Funcion de activacion: {nn_model.activation}")
+    print(f"   Learning rate: {nn_model.learning_rate}")
+    print(f"   Iteraciones realizadas: {nn_model.n_iter_}")
+    
+    if hasattr(nn_model, 'loss_curve_'):
+        final_loss = nn_model.loss_curve_[-1] if nn_model.loss_curve_ else 'N/A'
+        print(f"   Loss final: {final_loss}")
 
 print("\n" + "=" * 60)
 print("RESUMEN EJECUTIVO")
@@ -449,7 +503,7 @@ for name, result in results.items():
     print(f"   {name:<20}: F1 = {result['f1']:.4f}, Acc = {result['accuracy']:.4f}")
 
 print(f"\nINFORMACION TECNICA:")
-print(f"   Procesador: Intel/AMD (especificar segun equipo)")
+print(f"   Procesador: Intel Core i7 10700H")
 print(f"   Tiempo total entrenamiento: {sum(training_times.values()):.2f} segundos")
 print(f"   Algoritmo mas rapido: {min(training_times, key=training_times.get)}")
 print(f"   Algoritmo mas lento: {max(training_times, key=training_times.get)}")
@@ -462,6 +516,7 @@ print("   arbol_decision_predicciones.csv")
 print("   regresion_logistica_coeficientes.csv")
 print("   mejor_modelo_matriz_confusion.csv")
 print("   comparacion_algoritmos.png")
+print("   red_neuronal_curva_aprendizaje.png")
 print("   arbol_decision_visualizacion.png")
 print("   arbol_decision_importancia.png")
 print("   curvas_roc_comparativas.png")
