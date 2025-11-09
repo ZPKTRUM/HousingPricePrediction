@@ -1,0 +1,25 @@
+# SLIDE 9: ANÁLISIS DE RED NEURONAL - PERFORMANCE
+
+## MÉTRICAS DE PERFORMANCE - RED NEURONAL
+
+| MÉTRICA | VALOR | INTERPRETACIÓN |
+|---------|-------|----------------|
+| **Accuracy** | 82.3% | Buen rendimiento general |
+| **F1-Score** | 0.830 | Balance competitivo |
+| **AUC** | 0.900 | Buen poder discriminativo |
+| **Precision** | 78.9% | Moderada exactitud en positivos |
+| **Recall** | 87.7% | Excelente detección de "Caras" |
+| **Tiempo Entrenamiento** | 1.44s | Costo computacional moderado |
+
+## ARQUITECTURA ÓPTIMA ENCONTRADA:
+
+```python
+MLPClassifier(
+    hidden_layer_sizes=(50, 50),    # 2 capas de 50 neuronas
+    alpha=0.1,                      # Regularización media-alta
+    learning_rate='constant',       # Tasa de aprendizaje fija
+    learning_rate_init=0.01,        # Tasa inicial moderada
+    max_iter=2000,                  # Límite de iteraciones
+    random_state=42                 # Reproducibilidad
+)
+
