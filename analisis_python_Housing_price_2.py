@@ -80,7 +80,7 @@ print(f"\nConjunto de entrenamiento: {X_train.shape[0]} observaciones")
 print(f"Conjunto de prueba: {X_test.shape[0]} observaciones")
 
 # =============================================================================
-# 2. DEFINICION DE MODELOS Y HIPERPARAMETROS
+# 2. DEFINICION DE MODELOS E HIPERPARAMETROS
 # =============================================================================
 
 models = {
